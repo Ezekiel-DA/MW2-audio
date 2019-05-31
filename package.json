@@ -1,0 +1,16 @@
+{
+  "name": "mw2-audio",
+  "version": "1.0.0",
+  "description": "",
+  "main": "main.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "iohook": "^0.4.6",
+    "speaker": "git://github.com/colinbdclark/node-speaker.git#mpg123-lower-latency",
+    "web-audio-engine": "^0.13.4"
+  }
+}
