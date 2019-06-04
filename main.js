@@ -5,76 +5,94 @@ const fs = require('fs')
 
 const maxSpeed = 2.5
 const minSpeed = 0.5
-const rampTime = 15
 
 const lerp = (v0, v1, t) => v0 * (1 - t) + v1 * t
-const unlerp = (v0, v1, x) => (x - v0) / (v1 - v0)
 const clamp = (min, max) => (value) => value < min ? min : value > max ? max : value
-const equalEpsilon = (x, y) => Math.abs(x - y) < Number.EPSILON
 
-const step = 0.01
-let commandValue = 0.5
-function readCommandValue () {
-  //return commandValue
-  return 1
+const step = 0.025
+let commandValue = 0.0
+
+let startupSoundEffect = { file: 'lightcycle-startup.wav' }
+let hornSoundEffect = { file: 'lightcycle-horn.wav' }
+
+async function playSoundEffect (context, soundEffectObject, gain) {
+  if (!soundEffectObject.buffer) {
+    soundEffectObject.buffer = await context.decodeAudioData(fs.readFileSync(soundEffectObject.file))
+  }
+
+  if (soundEffectObject.playing) {
+    return
+  }
+  soundEffectObject.playing = true
+
+  let effectSource = context.createBufferSource()
+  effectSource.buffer = soundEffectObject.buffer
+  let gainNode = context.createGain()
+  effectSource.connect(gainNode).connect(context.destination)
+  gainNode.gain.setValueAtTime(gain || 1, context.currentTime)
+  effectSource.start()
+  effectSource.onended = () => { soundEffectObject.playing = false }
 }
 
 async function main () {
   let context = new AudioContext()
-
   context.pipe(new Speaker({ channels: 2, bitDepth: 16, sampleRate: 44100 }))
   context.resume()
 
-  let source
+  let engineSource = context.createBufferSource()
   let gainNode = context.createGain()
+  gainNode.gain.setValueAtTime(0.01, 0)
+  engineSource.buffer = await context.decodeAudioData(fs.readFileSync('lightcycle-engine.wav'))
+  engineSource.loop = true
+  engineSource.playbackRate.setValueAtTime(lerp(minSpeed, maxSpeed, commandValue), 0)
+  engineSource.playbackRate.value = minSpeed
+  engineSource.connect(gainNode).connect(context.destination)
+  engineSource.start()
 
-  context.decodeAudioData(fs.readFileSync('engine.wav'), audioBuffer => {
-    source = context.createBufferSource()
-    source.buffer = audioBuffer
-    source.loop = true
-    source.playbackRate.setValueAtTime(minSpeed, 0)
-    source.connect(gainNode)
-    gainNode.connect(context.destination)
-    source.start()
-  })
-
-  // let lastStepTime = process.hrtime.bigint()
+  let muted = true
 
   setInterval(() => {
-    if (!source) {
-      return
+    if (commandValue === 0.0 && !muted) {
+      gainNode.gain.setTargetAtTime(0.01, context.currentTime, 0.25)
+      muted = true
+    } else if (commandValue !== 0.0 && muted) {
+      gainNode.gain.exponentialRampToValueAtTime(1, context.currentTime + 1)
+      muted = false
     }
-
-    let commandValue = readCommandValue()
-    // let currentValue = unlerp(minSpeed, maxSpeed, source.playbackRate.value)
-    // let ramp
-    // if (equalEpsilon(currentValue, commandValue)) {
-    //   lastStepTime = process.hrtime.bigint()
-    //   ramp = 1.0
-    // } else {
-    //   let elapsed = Number(process.hrtime.bigint() - lastStepTime)
-    //   ramp = clamp(0.0, 1.0)(elapsed / (rampTime * 1000000))
-    // }
-    // source.playbackRate.value = lerp(minSpeed, maxSpeed, commandValue * ramp)
-    source.playbackRate.linearRampToValueAtTime(lerp(minSpeed, maxSpeed, commandValue), 2)
   }, 100)
 
-  iohook.on('keydown', e => {
-    // e.rawcode: up arrow 38, down arrow 40, spacebar 32
+  iohook.on('keyup', e => {
+    let current = engineSource.playbackRate.value
+
     switch (e.rawcode) {
       case 32: // spacebar
-        // playStartSound()
+        playSoundEffect(context, startupSoundEffect, 3)
+        break
+      case 72: // h
+        playSoundEffect(context, hornSoundEffect, 0.5)
         break
       case 38: // up arrow
         commandValue = clamp(0, 1)(commandValue + step)
+
+        // engineSource.playbackRate.cancelScheduledValues(0)
+        // engineSource.playbackRate.setValueAtTime(current, 0)
+        engineSource.playbackRate.value = current
         break
       case 40: // down arrow
         commandValue = clamp(0, 1)(commandValue - step)
+
+        // engineSource.playbackRate.cancelScheduledValues(0)
+        // engineSource.playbackRate.setValueAtTime(current, 0)
+        engineSource.playbackRate.value = current
         break
     }
+
+    let target = lerp(minSpeed, maxSpeed, commandValue)
+    // engineSource.playbackRate.exponentialRampToValueAtTime(target, 10)
+    engineSource.playbackRate.setValueAtTime(target, 0)
   })
 
-  //iohook.start()
+  iohook.start()
 }
 
 main()
