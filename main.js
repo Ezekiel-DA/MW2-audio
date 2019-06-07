@@ -1,6 +1,5 @@
 const AudioContext = require('web-audio-engine').StreamAudioContext
 const Speaker = require('speaker')
-const iohook = require('iohook')
 const fs = require('fs')
 const SerialPort = require('serialport')
 const Readline = require('@serialport/parser-readline')
@@ -9,9 +8,7 @@ const maxSpeed = 2.5
 const minSpeed = 0.5
 
 const lerp = (v0, v1, t) => v0 * (1 - t) + v1 * t
-const clamp = (min, max) => (value) => value < min ? min : value > max ? max : value
 
-const step = 0.025
 let commandValue = 0.0
 
 let startupSoundEffect = { file: 'lightcycle-startup.wav' }
