@@ -1,6 +1,7 @@
 const AudioContext = require('web-audio-engine').StreamAudioContext
 const Speaker = require('speaker')
 const fs = require('fs')
+const os = require('os')
 const SerialPort = require('serialport')
 const Readline = require('@serialport/parser-readline')
 
@@ -13,8 +14,9 @@ let commandValue = 0.0
 
 let startupSoundEffect = { file: 'lightcycle-startup.wav' }
 let hornSoundEffect = { file: 'lightcycle-horn.wav' }
+let bootSoundEffect = { file: 'boot.wav' }
 
-let port = new SerialPort('/dev/ttyACM0', err => {
+let port = new SerialPort(os.platform() === 'linux' ? '/dev/ttyACM0' : 'COM8', err => {
   if (err) {
     console.log('Serial connection failed, aborting')
     process.exit(1)
@@ -55,6 +57,8 @@ async function main () {
   engineSource.playbackRate.value = minSpeed
   engineSource.connect(gainNode).connect(context.destination)
   engineSource.start()
+
+  playSoundEffect(context, bootSoundEffect, 0.5)
 
   let muted = true
 
