@@ -88,9 +88,11 @@ async function main () {
 
   port.on('close', () => {
     console.log('Serial disconnect detected, aborting')
+    process.exit(1)
   })
   port.on('disconnect', () => {
     console.log('Serial disconnect detected, aborting')
+    process.exit(1)
   })
 }
 
