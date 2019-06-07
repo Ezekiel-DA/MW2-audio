@@ -67,8 +67,8 @@ async function main () {
       muted = false
     }
     let target = lerp(minSpeed, maxSpeed, commandValue)
-    engineSource.playbackRate.exponentialRampToValueAtTime(target, context.currentTime+0.05)
-  }, 150)
+    engineSource.playbackRate.exponentialRampToValueAtTime(target, context.currentTime+0.005)
+  }, 32)
 
   parser.on('data', val => {
     let parsedVal = Number(val)
@@ -86,7 +86,10 @@ async function main () {
     }
   })
 
-  port.on('close' () => {
+  port.on('close', () => {
+    console.log('Serial disconnect detected, aborting')
+  })
+  port.on('disconnect', () => {
     console.log('Serial disconnect detected, aborting')
   })
 }
