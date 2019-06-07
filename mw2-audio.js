@@ -30,15 +30,16 @@ async function playSoundEffect (context, soundEffectObject, gain) {
   }
 
   if (soundEffectObject.playing) {
+    console.log(`${soundEffectObject.file} already playing, skipped`)
     return
   }
   soundEffectObject.playing = true
 
   let effectSource = context.createBufferSource()
   effectSource.buffer = soundEffectObject.buffer
-  let gainNode = context.createGain()
-  effectSource.connect(gainNode).connect(context.destination)
-  gainNode.gain.setValueAtTime(gain || 1, context.currentTime)
+  let individualGainNode = context.createGain()
+  effectSource.connect(individualGainNode).connect(context.destination)
+  individualGainNode.gain.setValueAtTime(gain || 1, context.currentTime)
   effectSource.start()
   effectSource.onended = () => { soundEffectObject.playing = false }
 }
@@ -50,7 +51,7 @@ async function main () {
 
   let engineSource = context.createBufferSource()
   let gainNode = context.createGain()
-  gainNode.gain.setValueAtTime(0.0001, 0)
+  gainNode.gain.setValueAtTime(0.0001, context.currentTime)
   engineSource.buffer = await context.decodeAudioData(fs.readFileSync('lightcycle-engine.wav'))
   engineSource.loop = true
   engineSource.playbackRate.setValueAtTime(lerp(minSpeed, maxSpeed, commandValue), context.currentTime)
@@ -79,6 +80,7 @@ async function main () {
     if (Number.isInteger(parsedVal)) {
       commandValue = Number(val) / 100
     } else {
+      console.log(val.trim())
       switch(val.trim()) {
         case 'horn':
           playSoundEffect(context, hornSoundEffect, 0.5)
