@@ -14,7 +14,7 @@ let commandValue = 0.0
 let startupSoundEffect = { file: 'lightcycle-startup.wav' }
 let hornSoundEffect = { file: 'lightcycle-horn.wav' }
 
-let port = new SerialPort('COM8')
+let port = new SerialPort('/dev/ttyACM0')
 const parser = port.pipe(new Readline())
 
 async function playSoundEffect (context, soundEffectObject, gain) {
@@ -54,10 +54,10 @@ async function main () {
   let muted = true
 
   setInterval(() => {
-    if (commandValue === 0.0 && !muted) {
+    if (commandValue < 0.1 && !muted) {
       gainNode.gain.setTargetAtTime(0.0001, context.currentTime, 0.25)
       muted = true
-    } else if (commandValue !== 0.0 && muted) {
+    } else if (commandValue > 0.1 && muted) {
       gainNode.gain.exponentialRampToValueAtTime(1, context.currentTime + 1)
       muted = false
     }
