@@ -2,6 +2,8 @@ const AudioContext = require('web-audio-engine').StreamAudioContext
 const Speaker = require('speaker')
 const iohook = require('iohook')
 const fs = require('fs')
+const SerialPort = require('serialport')
+const Readline = require('@serialport/parser-readline')
 
 const maxSpeed = 2.5
 const minSpeed = 0.5
@@ -14,6 +16,9 @@ let commandValue = 0.0
 
 let startupSoundEffect = { file: 'lightcycle-startup.wav' }
 let hornSoundEffect = { file: 'lightcycle-horn.wav' }
+
+let port = new SerialPort('COM8')
+const parser = port.pipe(new Readline())
 
 async function playSoundEffect (context, soundEffectObject, gain) {
   if (!soundEffectObject.buffer) {
@@ -41,10 +46,10 @@ async function main () {
 
   let engineSource = context.createBufferSource()
   let gainNode = context.createGain()
-  gainNode.gain.setValueAtTime(0.01, 0)
+  gainNode.gain.setValueAtTime(0.0001, 0)
   engineSource.buffer = await context.decodeAudioData(fs.readFileSync('lightcycle-engine.wav'))
   engineSource.loop = true
-  engineSource.playbackRate.setValueAtTime(lerp(minSpeed, maxSpeed, commandValue), 0)
+  engineSource.playbackRate.setValueAtTime(lerp(minSpeed, maxSpeed, commandValue), context.currentTime)
   engineSource.playbackRate.value = minSpeed
   engineSource.connect(gainNode).connect(context.destination)
   engineSource.start()
@@ -53,46 +58,31 @@ async function main () {
 
   setInterval(() => {
     if (commandValue === 0.0 && !muted) {
-      gainNode.gain.setTargetAtTime(0.01, context.currentTime, 0.25)
+      gainNode.gain.setTargetAtTime(0.0001, context.currentTime, 0.25)
       muted = true
     } else if (commandValue !== 0.0 && muted) {
       gainNode.gain.exponentialRampToValueAtTime(1, context.currentTime + 1)
       muted = false
     }
-  }, 100)
-
-  iohook.on('keyup', e => {
-    let current = engineSource.playbackRate.value
-
-    switch (e.rawcode) {
-      case 32: // spacebar
-        playSoundEffect(context, startupSoundEffect, 3)
-        break
-      case 72: // h
-        playSoundEffect(context, hornSoundEffect, 0.5)
-        break
-      case 38: // up arrow
-        commandValue = clamp(0, 1)(commandValue + step)
-
-        // engineSource.playbackRate.cancelScheduledValues(0)
-        // engineSource.playbackRate.setValueAtTime(current, 0)
-        engineSource.playbackRate.value = current
-        break
-      case 40: // down arrow
-        commandValue = clamp(0, 1)(commandValue - step)
-
-        // engineSource.playbackRate.cancelScheduledValues(0)
-        // engineSource.playbackRate.setValueAtTime(current, 0)
-        engineSource.playbackRate.value = current
-        break
-    }
-
     let target = lerp(minSpeed, maxSpeed, commandValue)
-    // engineSource.playbackRate.exponentialRampToValueAtTime(target, 10)
-    engineSource.playbackRate.setValueAtTime(target, 0)
-  })
+    engineSource.playbackRate.exponentialRampToValueAtTime(target, context.currentTime+0.05)
+  }, 150)
 
-  iohook.start()
+  parser.on('data', val => {
+    let parsedVal = Number(val)
+    if (Number.isInteger(parsedVal)) {
+      commandValue = Number(val) / 100
+    } else {
+      switch(val.trim()) {
+        case 'horn':
+          playSoundEffect(context, hornSoundEffect, 0.5)
+          break;
+        case 'startup':
+          playSoundEffect(context, startupSoundEffect, 3)
+          break;
+      }
+    }
+  })
 }
 
 main()

@@ -10,6 +10,7 @@
   "license": "ISC",
   "dependencies": {
     "iohook": "^0.4.6",
+    "serialport": "^7.1.5",
     "speaker": "git://github.com/colinbdclark/node-speaker.git#mpg123-lower-latency",
     "web-audio-engine": "^0.13.4"
   }
