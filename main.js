@@ -15,8 +15,10 @@ let startupSoundEffect = { file: 'lightcycle-startup.wav' }
 let hornSoundEffect = { file: 'lightcycle-horn.wav' }
 
 let port = new SerialPort('/dev/ttyACM0', err => {
-  console.log(err)
-  process.exit(1)
+  if (err) {
+    console.log(err)
+    process.exit(1)
+  }
 })
 const parser = port.pipe(new Readline())
 
