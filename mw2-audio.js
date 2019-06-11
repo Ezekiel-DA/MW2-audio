@@ -12,9 +12,28 @@ const lerp = (v0, v1, t) => v0 * (1 - t) + v1 * t
 
 let commandValue = 0.0
 
-let startupSoundEffect = { file: 'lightcycle-startup.wav' }
-let hornSoundEffect = { file: 'lightcycle-horn.wav' }
-let bootSoundEffect = { file: 'boot.wav' }
+class SoundEffect {
+  constructor (context, file) {
+    this.context = context
+    this.bufferPromise = fs.promises.readFile(file).then(audioData => context.decodeAudioData(audioData))
+  }
+
+  async play (gain) {
+    if (this.playing) {
+      return
+    } else {
+      this.playing = true
+    }
+
+    let effectSource = this.context.createBufferSource()
+    effectSource.onended = () => { this.playing = false }
+    effectSource.buffer = await this.bufferPromise
+    let individualGainNode = this.context.createGain()
+    effectSource.connect(individualGainNode).connect(this.context.destination)
+    individualGainNode.gain.setValueAtTime(gain || 1, this.context.currentTime)
+    effectSource.start(this.context.currentTime + 0.001) // small offset to work around a timing bug in Web-Audio-Engine?
+  }
+}
 
 let port = new SerialPort(os.platform() === 'linux' ? '/dev/ttyACM0' : 'COM8', err => {
   if (err) {
@@ -24,30 +43,14 @@ let port = new SerialPort(os.platform() === 'linux' ? '/dev/ttyACM0' : 'COM8', e
 })
 const parser = port.pipe(new Readline())
 
-async function playSoundEffect (context, soundEffectObject, gain) {
-  if (!soundEffectObject.buffer) {
-    soundEffectObject.buffer = await context.decodeAudioData(fs.readFileSync(soundEffectObject.file))
-  }
-
-  if (soundEffectObject.playing) {
-    console.log(`${soundEffectObject.file} already playing, skipped`)
-    return
-  }
-  soundEffectObject.playing = true
-
-  let effectSource = context.createBufferSource()
-  effectSource.buffer = soundEffectObject.buffer
-  let individualGainNode = context.createGain()
-  effectSource.connect(individualGainNode).connect(context.destination)
-  individualGainNode.gain.setValueAtTime(gain || 1, context.currentTime)
-  effectSource.start()
-  effectSource.onended = () => { soundEffectObject.playing = false }
-}
-
 async function main () {
   let context = new AudioContext()
   context.pipe(new Speaker({ channels: 2, bitDepth: 16, sampleRate: 44100 }))
   context.resume()
+
+  let startupSoundEffect = new SoundEffect(context, 'lightcycle-startup.wav')
+  let hornSoundEffect = new SoundEffect(context, 'lightcycle-horn.wav')
+  let bootSoundEffect = new SoundEffect(context, 'boot.wav')
 
   let engineSource = context.createBufferSource()
   let gainNode = context.createGain()
@@ -59,7 +62,7 @@ async function main () {
   engineSource.connect(gainNode).connect(context.destination)
   engineSource.start()
 
-  playSoundEffect(context, bootSoundEffect, 0.5)
+  bootSoundEffect.play(0.5)
 
   let muted = true
 
@@ -72,7 +75,7 @@ async function main () {
       muted = false
     }
     let target = lerp(minSpeed, maxSpeed, commandValue)
-    engineSource.playbackRate.exponentialRampToValueAtTime(target, context.currentTime+0.005)
+    engineSource.playbackRate.exponentialRampToValueAtTime(target, context.currentTime + 0.005)
   }, 32)
 
   parser.on('data', val => {
@@ -80,14 +83,13 @@ async function main () {
     if (Number.isInteger(parsedVal)) {
       commandValue = Number(val) / 100
     } else {
-      console.log(val.trim())
-      switch(val.trim()) {
+      switch (val.trim()) {
         case 'horn':
-          playSoundEffect(context, hornSoundEffect, 0.5)
-          break;
+          hornSoundEffect.play(0.5)
+          break
         case 'startup':
-          playSoundEffect(context, startupSoundEffect, 3)
-          break;
+          startupSoundEffect.play(3)
+          break
       }
     }
   })
